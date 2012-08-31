@@ -1,0 +1,222 @@
+"About":
+{
+	"Name": "Advanced Global Values"
+	"Author": "LB"
+	"Copyright": "Copyright © 2012 LB"
+	"Comment": "Allows for grouping of floating point global values and strings and easy reorganization via a text-based format."
+	"URL": "http://www.LB-Stuff.com/"
+	"Help": ""
+	"Identifier": "AGVO"
+}
+
+"ActionMenu":
+[
+	"Separator"
+	[0, "Set Global Value"]
+	[1, "Set Global String"]
+	"Separator"
+	[2, "Set Global Value in Group"]
+	[3, "Set Global String in Group"]
+	"Separator"
+	[4, "Merge Global Values from String"]
+	[5, "Merge Global Strings from String"]
+	"Separator"
+]
+"ConditionMenu":
+[
+	"Separator"
+	[0, "Compare to Global Value"]
+	[1, "Compare to Global String"]
+	"Separator"
+	[2, "Compare to Global Value in Group"]
+	[3, "Compare to Global String in Group"]
+]
+"ExpressionMenu":
+[
+	"Separator"
+	[0, "Get Global Value"]
+	[1, "Get Global String"]
+	"Separator"
+	[2, "Get Global Value from Group"]
+	[3, "Get Global String from Group"]
+	"Separator"
+	[4, "Get All Global Values as String"]
+	[5, "Get All Global Strings as String"]
+	"Separator"
+	[6, "Get All Global Values from Group as String"]
+	[7, "Get All Global Strings from Group as String"]
+	"Separator"
+]
+"Actions":
+[
+	{ "Title": "Set Global Value %0 to %1, and guess which group"
+	  "Parameters": 
+	  [
+		["Text", "Name"]
+		["Float", "Value"]
+	  ]
+	}
+	{ "Title": "Set Global String %0 to %1, and guess which group"
+	  "Parameters": 
+	  [
+		["Text", "Name"]
+		["Text", "String"]
+	  ]
+	}
+	{ "Title": "Set Global Value %1 in %0 to %2"
+	  "Parameters": 
+	  [
+		["Text", "Group"]
+		["Text", "Name"]
+		["Float", "Value"]
+	  ]
+	}
+	{ "Title": "Set Global Value %1 in %0 to %2"
+	  "Parameters": 
+	  [
+		["Text", "Group"]
+		["Text", "Name"]
+		["Text", "String"]
+	  ]
+	}
+	{ "Title": "Merge Global Values from %0 with %1 as a group delimiter and %2 as a value delimiter using %3 as an escape sequence"
+	  "Parameters": 
+	  [
+		["Text", "String to Merge from"]
+		["Text", "Group Delimiter"]
+		["Text", "Value Delimiter"]
+		["Text", "Escape"]
+	  ]
+	}
+	{ "Title": "Merge Global Strings from %0 with %1 as a group delimiter and %2 as a string delimiter using %3 as an escape sequence"
+	  "Parameters": 
+	  [
+		["Text", "String to Merge from"]
+		["Text", "Group Delimiter"]
+		["Text", "String Delimiter"]
+		["Text", "Escape"]
+	  ]
+	}
+]
+"Conditions":
+[
+	{ "Title": "%o: %0 %1 %2"
+	  "Triggered":false
+
+	  "Parameters": 
+	  [
+		["Text", "Name"] 
+		["Text", "<, <=, >, >=, =, <>"] 
+		["Float", "Value"] 
+	  ] 
+	}
+	{ "Title": "%o: %0 %1 %2"
+	  "Triggered":false
+
+	  "Parameters": 
+	  [
+		["Text", "Name"] 
+		["Text", "<, <=, >, >=, =, <>"] 
+		["Text", "String"] 
+	  ] 
+	}
+	{ "Title": "%o: %0->%1 %2 %3"
+	  "Triggered":false
+
+	  "Parameters": 
+	  [
+		["Text", "Group"] 
+		["Text", "Name"] 
+		["Text", "<, <=, >, >=, =, <>"] 
+		["Float", "Value"]
+	  ] 
+	}
+	{ "Title": "%o: %0->%1 %2 %3"
+	  "Triggered":false
+
+	  "Parameters": 
+	  [
+		["Text", "Group"] 
+		["Text", "Name"] 
+		["Text", "<, <=, >, >=, =, <>"] 
+		["Text", "String"]
+	  ] 
+	}
+]
+"Expressions":
+[
+	{ "Title": "GlobalV("
+	  "Returns": "Float"
+
+	  "Parameters": 
+	  [
+		["Text", "Name"]
+	  ]
+	}
+	{ "Title": "GlobalS$("
+	  "Returns": "Text"
+
+	  "Parameters": 
+	  [
+		["Text", "Name"]
+	  ]
+	}
+	{ "Title": "GlobalVG("
+	  "Returns": "Float"
+
+	  "Parameters": 
+	  [
+		["Text", "Group"]
+		["Text", "Name"]
+	  ]
+	}
+	{ "Title": "GlobalSG$("
+	  "Returns": "Text"
+
+	  "Parameters": 
+	  [
+		["Text", "Group"]
+		["Text", "Name"]
+	  ]
+	}
+	{ "Title": "GetAllV$("
+	  "Returns": "Text"
+
+	  "Parameters": 
+	  [
+		["Text", "Group Delimiter"]
+		["Text", "Value Delimiter"]
+		["Text", "Escape"]
+	  ]
+	}
+	{ "Title": "GetAllS$("
+	  "Returns": "Text"
+
+	  "Parameters": 
+	  [
+		["Text", "Group Delimiter"]
+		["Text", "String Delimiter"]
+		["Text", "Escape"]
+	  ]
+	}
+	{ "Title": "GetVGroup$("
+	  "Returns": "Text"
+
+	  "Parameters": 
+	  [
+		["Text", "Group Name"]
+		["Text", "Value Delimiter"]
+		["Text", "Escape"]
+	  ]
+	}
+	{ "Title": "GetSGroup$("
+	  "Returns": "Text"
+
+	  "Parameters": 
+	  [
+		["Text", "Group Name"]
+		["Text", "String Delimiter"]
+		["Text", "Escape"]
+	  ]
+	}
+]
