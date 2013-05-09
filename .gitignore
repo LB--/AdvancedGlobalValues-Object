@@ -1,3 +1,15 @@
+# Template project built files
+MFX/
+Debug HWA/
+DebugUnicode/
+Edittime HWA/
+ReleaseEditor/
+ReleaseEditorUnicode/
+ReleaseRuntime/
+ReleaseRuntimeUnicode/
+Runtime HWA/
+
+
 #################
 ## Eclipse
 #################

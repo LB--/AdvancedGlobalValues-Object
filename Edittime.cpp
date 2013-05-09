@@ -1,492 +1,297 @@
+/* Edittime.cpp
+ * This file contains functions for the
+ * New Object dialog and the Frame Editor.
+ * For properties, see Properties.cpp. For
+ * custom parameters, see CustomParams.cpp.
+ * For text properties, see TextProps.cpp.
+ * Functions defined here:
+ * MakeIconEx
+ * UsesFile
+ * CreateFromFile
+ * CreateObject
+ * EditObject
+ * SetEditSize
+ * PutObject
+ * RemoveObject
+ * CloneObject
+ * GetObjectRect
+ * EditorDisplay
+ * IsTransparent
+ * PrepareToWriteObject
+ * GetFilters
+ */
+
 #include "Common.h"
-#ifndef RUN_ONLY
-#include <list>
-#include <map>
 
-#include "EditData.hpp"
-#include "StringConvert.hpp"
-
-enum
-{
-	PROPID_SETTINGS = PROPID_EXTITEM_CUSTOM_FIRST,
-
-	PROP_Version,
-	PROP_Defaults,
-	PROP_ValuesList,
-	PROP_GroupSeparator,
-	PROP_StringsList,
-};
-
-#define VPropID(n) (int(PROP_StringsList)+1+(n))
-
-EditGlobalVars *gvars = 0;
-EditGlobalStrs *gstrs = 0;
-std::map<int, EditData::GlobalVal::iterator> *vmatches = 0;
-std::map<int, EditData::GlobalStr::iterator> *smatches = 0;
-PropData *Properties = 0;
-
-#define MKRS (UINT_PTR)LPCSTR
-PropData Dummy[] =
-{
-	PropData_StaticString(PROP_Version, MKRS("Version"), MKRS("The current version. See the next properties tab for the cool stuff.")),
-	PropData_Button(PROP_Defaults, MKRS("Need Syntax?"), MKRS("Click this button to add the example values so you can get an idea of the syntax."), MKRS("Add Defaults")),
-	PropData_End()
-};
-
-#endif //!RUN_ONLY
-
-BOOL WINAPI DLLExport GetProperties(LPMV mV, LPEDATA edPtr, BOOL bMasterItem)
+/* CreateObject
+ * This is the first time you have
+ * access to the editdata, so it
+ * needs to be initialized with
+ * default values. Just be aware
+ * that if the user chooses to
+ * create your object from a file,
+ * CreateFromFile will be called
+ * instead of this function.
+ */
+int MMF2Func CreateObject(mv *mV, LO *lo, SerializedED *SED)
 {
 #ifndef RUN_ONLY
-	if(!vmatches) vmatches = new std::map<int, EditData::GlobalVal::iterator>;
-	if(!smatches) smatches = new std::map<int, EditData::GlobalStr::iterator>;
-
-	std::list<PropData> pd;
-	int ID = VPropID(0);
-
-	PropData t1 = PropData_EditMultiLine_Opt(PROP_ValuesList, MKRS("Global Values"), MKRS("Edit this to add your own Groups with named Global Values!"), PROPOPT_BOLD);
-	pd.push_back(t1);
-	for(EditData::GlobalVals::iterator it = (*gvars)[mV->mvEditApp].begin(); it != (*gvars)[mV->mvEditApp].end(); ++it)
+	if(IS_COMPATIBLE(mV)) //Make sure MMF2 hasn't changed in a way that makes your extension incompatible
 	{
-		PropData t2 = PropData_Folder(ID++, MKRS(it->first.c_str()), MKRS("A Group of Global Values."));
-		pd.push_back(t2);
-		for(EditData::GlobalVal::iterator jt = it->second.begin(); jt != it->second.end(); ++jt)
-		{
-			(*vmatches)[ID] = jt;
-			PropData t3 = PropData_EditFloat(ID++, MKRS(jt->first.c_str()), MKRS("A Global Value...edit it!"));
-			pd.push_back(t3);
-		}
-		PropData t4 = PropData_Folder_End();
-		pd.push_back(t4);
-	}
+		Edif::Init(mV, SED);
 
-	PropData t4 = PropData_Group(PROP_GroupSeparator, MKRS(""), MKRS(""));
-	pd.push_back(t4);
-
-	PropData t5 = PropData_EditMultiLine_Opt(PROP_StringsList, MKRS("Global Strings"), MKRS("Edit this to add your own Groups with named Global Strings!"), PROPOPT_BOLD);
-	pd.push_back(t5);
-	for(EditData::GlobalStrs::iterator it = (*gstrs)[mV->mvEditApp].begin(); it != (*gstrs)[mV->mvEditApp].end(); ++it)
-	{
-		PropData t6 = PropData_Folder(ID++, MKRS(it->first.c_str()), MKRS("A Group of Global Strings."));
-		pd.push_back(t6);
-		for(EditData::GlobalStr::iterator jt = it->second.begin(); jt != it->second.end(); ++jt)
-		{
-			(*smatches)[ID] = jt;
-			PropData t7 = PropData_EditMultiLine(ID++, MKRS(jt->first.c_str()), MKRS("A Global String...edit it!"));
-			pd.push_back(t7);
-		}
-		PropData t8 = PropData_Folder_End();
-		pd.push_back(t8);
-	}
-
-	PropData t9 = PropData_End();
-	pd.push_back(t9);
-
-	Properties = new PropData[pd.size()];
-	unsigned int i = 0;
-	for(list<PropData>::iterator it = pd.begin(); it != pd.end(); ++it, ++i)
-	{
-		Properties[i] = *it;
-	}
-	mvInsertProps(mV, edPtr, Dummy,		PROPID_TAB_GENERAL, TRUE);
-	mvInsertProps(mV, edPtr, Properties,PROPID_TAB_CUSTOM1, TRUE);
-#endif // !defined(RUN_ONLY)
-
-	return TRUE;
-}
-
-void WINAPI DLLExport ReleaseProperties(LPMV mV, LPEDATA edPtr, BOOL bMasterItem)
-{
-#ifndef RUN_ONLY
-	if(Properties)
-	{
-		delete Properties;
-		Properties = 0;
-	}
-	if(vmatches)
-	{
-		delete vmatches;
-		vmatches = 0;
-	}
-	if(smatches)
-	{
-		delete smatches;
-		smatches = 0;
-	}
-	EditData ed;
-	ed.Values = (*gvars)[mV->mvEditApp];
-	ed.Strings = (*gstrs)[mV->mvEditApp];
-	ed.Serialize(mV, edPtr);
-#endif // !defined(RUN_ONLY)
-}
-
-LPARAM WINAPI DLLExport GetPropCreateParam(LPMV mV, LPEDATA edPtr, UINT nPropID)
-{
-#ifndef RUN_ONLY
-#endif // !defined(RUN_ONLY)
-	return NULL;
-}
-
-void WINAPI DLLExport ReleasePropCreateParam(LPMV mV, LPEDATA edPtr, UINT nPropID, LPARAM lParam)
-{
-#ifndef RUN_ONLY
-#endif // !defined(RUN_ONLY)
-}
-
-LPVOID WINAPI DLLExport GetPropValue(LPMV mV, LPEDATA edPtr, UINT nPropID)
-{
-#ifndef RUN_ONLY
-	if(nPropID == PROP_Version)
-	{
-		return new CPropDataValue("1.3 - Check for more bugs again!");
-	}
-	else if(nPropID == PROP_ValuesList)
-	{
-		if(!gvars) return 0;
-		TString values;
-		for(EditData::GlobalVals::iterator it = (*gvars)[mV->mvEditApp].begin(); it != (*gvars)[mV->mvEditApp].end(); ++it)
-		{
-			values += it->first + T":\r\n";
-			for(EditData::GlobalVal::iterator jt = it->second.begin(); jt != it->second.end(); ++jt)
-			{
-				values += jt->first + T"=" + ConvTo<TString>::f(jt->second) + T"\r\n";
-			}
-			values += T"\r\n";
-		}
-		return new CPropDataValue(values.c_str());
-	}
-	else if(nPropID == PROP_StringsList)
-	{
-		if(!gstrs) return 0;
-		TString strings;
-		for(EditData::GlobalStrs::iterator it = (*gstrs)[mV->mvEditApp].begin(); it != (*gstrs)[mV->mvEditApp].end(); ++it)
-		{
-			strings += it->first + T":\r\n";
-			for(EditData::GlobalStr::iterator jt = it->second.begin(); jt != it->second.end(); ++jt)
-			{
-				TString::size_type pos = 0;
-				TString rep;
-				for(TString::iterator i = jt->second.begin(); i != jt->second.end(); ++i)
-				{
-					if(*i == T'\r')
-					{
-						rep += T"\\\r";
-					}
-					else rep += *i;
-				}
-				strings += jt->first + T"=" + rep + T"\r\n";
-			}
-			strings += T"\r\n";
-		}
-		return new CPropDataValue(strings.c_str());
-	}
-	else if(vmatches->find(nPropID) != vmatches->end()) return new CPropFloatValue((*vmatches)[nPropID]->second);
-	else if(smatches->find(nPropID) != smatches->end()) return new CPropDataValue((*smatches)[nPropID]->second.c_str());
-#endif // !defined(RUN_ONLY)
-	return NULL;
-}
-
-BOOL WINAPI DLLExport GetPropCheck(LPMV mV, LPEDATA edPtr, UINT nPropID)
-{
-#ifndef RUN_ONLY
-#endif // !defined(RUN_ONLY)
-	return 0;		// Unchecked
-}
-#ifndef RUN_ONLY
-void Refresh(LPMV &mV, LPEDATA &edPtr)
-{
-	mvRemoveProps(mV, edPtr, Properties);
-	mvRemoveProps(mV, edPtr, Dummy);
-	delete Properties;
-	Properties = 0;
-	vmatches->clear();
-	smatches->clear();
-	GetProperties(mV, edPtr, FALSE);
-}
-
-bool alone(TString::size_type i, const TString &s)
-{
-	bool b = true;
-	if(i + 1 < s.length())
-	{
-		b &= s[i+1] != T' ';
-		b &= s[i+1] != T'\t';
-		b &= s[i+1] != T'\r';
-		b &= s[i+1] != T'\n';
-	}
-	if(i > 0)
-	{
-		b &= s[i-1] != T' ';
-		b &= s[i-1] != T'\t';
-		b &= s[i-1] != T'\r';
-		b &= s[i-1] != T'\n';
-	}
-	return b;
-}
-#endif
-void WINAPI DLLExport SetPropValue(LPMV mV, LPEDATA edPtr, UINT nPropID, LPVOID lParam)
-{
-#ifndef RUN_ONLY
-	CPropValue* pValue = (CPropValue*)lParam;
-	if(nPropID == PROP_ValuesList)
-	{
-		if(!gvars) return;
-		(*gvars)[mV->mvEditApp].clear();
-		TString values = (LPSTR)((CPropDataValue*)pValue)->m_pData;
-		TString elem;
-		TString lastGroup;
-		for(TString::size_type i = 0; i < values.length(); ++i)
-		{
-			if(values[i] == T':')
-			{
-				(*gvars)[mV->mvEditApp][elem] = EditData::GlobalVal();
-				lastGroup = elem;
-				elem.clear();
-			}
-			else if(values[i] == T'=')
-			{
-				(*gvars)[mV->mvEditApp][lastGroup][elem] = ConvTo<float>::f(values.substr(i+1));
-				while(i < values.length() && values[i] != T'\r' && values[i] != T'\n') ++i;
-				--i;
-				elem.clear();
-			}
-			else if(values[i] == ' ' && !alone(i, values))
-			{
-				values.erase(i--, 1);
-				continue;
-			}
-			else if(values[i] == T'\t');
-			else if(values[i] == T'\r');
-			else if(values[i] == T'\n');
-			else elem += values[i];
-		}
-	}
-	else if(nPropID == PROP_StringsList)
-	{
-		if(!gstrs) return;
-		(*gstrs)[mV->mvEditApp].clear();
-		TString strings = (LPSTR)((CPropDataValue*)pValue)->m_pData;
-		TString elem;
-		TString lastGroup;
-		for(TString::size_type i = 0; i < strings.length(); ++i)
-		{
-			if(strings[i] == T':')
-			{
-				(*gstrs)[mV->mvEditApp][elem] = EditData::GlobalStr();
-				lastGroup = elem;
-				elem.clear();
-			}
-			else if(strings[i] == T'=')
-			{
-				TString str;
-				++i;
-				while(i < strings.length())
-				{
-					if(strings[i] == T'\\') ++i;
-					else if(strings[i] == T'\r') break;
-					if(i < strings.length()) str += strings[i++]; //the \ escape may throw it off
-				}
-				(*gstrs)[mV->mvEditApp][lastGroup][elem] = str;
-				--i;
-				elem.clear();
-			}
-			else if(strings[i] == T' ' && !alone(i, strings))
-			{
-				strings.erase(i--, 1);
-				continue;
-			}
-			else if(strings[i] == T'\t');
-			else if(strings[i] == T'\r');
-			else if(strings[i] == T'\n');
-			else elem += strings[i];
-		}
-	}
-	else if(vmatches->find(nPropID) != vmatches->end())
-	{
-		(*vmatches)[nPropID]->second = ((CPropFloatValue*)pValue)->m_fValue;
-		mvRefreshProp(mV, edPtr, PROP_ValuesList, FALSE);
-	}
-	else if(smatches->find(nPropID) != smatches->end())
-	{
-		(*smatches)[nPropID]->second = (LPSTR)((CPropDataValue*)pValue)->m_pData;
-		mvRefreshProp(mV, edPtr, PROP_StringsList, FALSE);
-	}
-
-	EditData ed (edPtr);
-	ed.Values = (*gvars)[mV->mvEditApp];
-	ed.Strings = (*gstrs)[mV->mvEditApp];
-	ed.Serialize(mV, edPtr);
-
-	if(nPropID == PROP_ValuesList || nPropID == PROP_StringsList) //perform full refresh
-	{
-		Refresh(mV, edPtr);
-	}
-#endif // !defined(RUN_ONLY)
-}
-
-void WINAPI DLLExport SetPropCheck(LPMV mV, LPEDATA edPtr, UINT nPropID, BOOL nCheck)
-{
-#ifndef RUN_ONLY
-#endif // !defined(RUN_ONLY)
-}
-
-BOOL WINAPI DLLExport EditProp(LPMV mV, LPEDATA edPtr, UINT nPropID)
-{
-#ifndef RUN_ONLY
-	if(nPropID == PROP_Defaults)
-	{
-		(*gvars)[mV->mvEditApp][T"Example Group"][T"Example Global Value"] = 3.14159265f;
-		(*gstrs)[mV->mvEditApp][T"Group"][T"String"] = T"Text";
-
-		Refresh(mV, edPtr);
-	}
-#endif // !defined(RUN_ONLY)
-	return FALSE;
-}
-
-BOOL WINAPI IsPropEnabled(LPMV mV, LPEDATA edPtr, UINT nPropID)
-{
-#ifndef RUN_ONLY
-#endif // !defined(RUN_ONLY)
-	return TRUE;
-}
-
-
-int WINAPI DLLExport MakeIconEx ( mv _far *mV, cSurface* pIconSf, LPTSTR lpName, fpObjInfo oiPtr, LPEDATA edPtr )
-{
-#ifndef RUN_ONLY
-
-	pIconSf->Delete();
-	pIconSf->Clone(*SDK->Icon);
-
-	pIconSf->SetTransparentColor(RGB(255, 0, 0));
-
-#endif // !defined(RUN_ONLY)
-   return 0;
-}
-
-int WINAPI DLLExport CreateObject(mv _far *mV, fpLevObj loPtr, LPEDATA edPtr)
-{
-#ifndef RUN_ONLY
-
-	// Check compatibility
-	if ( IS_COMPATIBLE(mV) )
-	{
-		Edif::Init(mV, edPtr);
-
-		EditData ed;
-		ed.Values = (*gvars)[mV->mvEditApp];
-		ed.Strings = (*gstrs)[mV->mvEditApp];
-		ed.Serialize(mV, edPtr);
+		EditData().Serialize(mV, SED); //create & store the default editdata
 
 		return 0;
 	}
-#endif // !defined(RUN_ONLY)
-
-	// Error
+#endif
 	return -1;
 }
 
-void WINAPI	DLLExport PutObject(mv _far *mV, fpLevObj loPtr, LPEDATA edPtr, ushort cpt)
+/* MakeIconEx
+ * Lets you draw the icon dynamically
+ * by drawing into the Icon surface. The
+ * current example just uses the
+ * Icon.png from the resources.
+ */
+int MMF2Func MakeIconEx(mv *mV, cSurface *Icon, LPTSTR Name, OI *oi, SerializedED *SED)
 {
 #ifndef RUN_ONLY
-	EditData ed (edPtr);
-	ed.Values = (*gvars)[mV->mvEditApp];
-	ed.Strings = (*gstrs)[mV->mvEditApp];
-	ed.Serialize(mV, edPtr);
-#endif // !defined(RUN_ONLY)
+	Icon->Delete();
+	Icon->Clone(*SDK->Icon);
+	Icon->SetTransparentColor(RGB(255, 0, 255));
+	return 0;
+#endif
+	return -1;
 }
 
-void WINAPI	DLLExport PrepareToWriteObject(mv _far *mV, LPEDATA edPtr, fpObjInfo adoi)
+/* UsesFile
+ * When the user chooses "Create From
+ * File", MMF2 asks each extension if
+ * it supports being created from that
+ * file. Here you should investigate
+ * the file and see if your extension
+ * can be created from it in the
+ * CreateFromFile function below. You
+ * can simply check the file extension,
+ * for example.
+ */
+BOOL MMF2Func UsesFile(mv *mV, LPTSTR FileName)
 {
 #ifndef RUN_ONLY
-	EditData ed (edPtr);
-	ed.Values = (*gvars)[mV->mvEditApp];
-	ed.Strings = (*gstrs)[mV->mvEditApp];
-	ed.Serialize(mV, edPtr);
-#endif // !defined(RUN_ONLY)
-}
-
-BOOL WINAPI EditObject (mv _far *mV, fpObjInfo oiPtr, fpLevObj loPtr, LPEDATA edPtr)
-{
-#ifndef RUN_ONLY
-	// Check compatibility
-	if ( IS_COMPATIBLE(mV) )
+	if(IS_COMPATIBLE(mV)) //check for compatibility, since you can't return an error from CreateFromFile
 	{
-		EditData ed (edPtr);
-		ed.Values = (*gvars)[mV->mvEditApp];
-		ed.Strings = (*gstrs)[mV->mvEditApp];
-		ed.Serialize(mV, edPtr);
+//		char ext[_MAX_EXT];
+//		_tsplitpath(FileName, 0, 0, 0, ext);
+//		if(stdtstring(".iherebydeclarethatthisfilecontainsmyintmystringandmyarray") == ext)
+//		{
+//			return TRUE;
+//		}
 	}
-#endif // !defined(RUN_ONLY)
+#endif
 	return FALSE;
 }
 
-void WINAPI	DLLExport RemoveObject(mv _far *mV, fpLevObj loPtr, LPEDATA edPtr, ushort cpt)
+/* CreateFromFile
+ * If the user decides to create your object
+ * from the file you said you were OK with
+ * above, this is where you take that file
+ * and actually create your object from it.
+ * The CreateObject function up above will
+ * not have executed, so you need to initialize
+ * the editdata just as you would in CreateObject.
+ */
+void MMF2Func CreateFromFile(mv *mV, LPTSTR FileName, SerializedED *SED)
 {
 #ifndef RUN_ONLY
-	// Is the last object removed?
-	if (0 == cpt)
+	Edif::Init(mV, SED);
+
+	EditData ed; //default EditData
+//	std::ifstream in (FileName);
+//	EditData::MyArray_t::size_type MyArray_size;
+//	in >> ed.MyString >> ed.MyInt >> MyArray_size;
+//	ed.MyArray.clear();
+//	for(EditData::MyArray_t::size_type i = 0; i < MyArray_size; ++i)
+//	{
+//		ed.MyArray.push_back(0);
+//		in >> ed.MyArray.back();
+//	}
+	ed.Serialize(mV, SED);
+#endif
+}
+
+/* PutObject
+ * Each time a duplicate is made of your
+ * object, MMF2 calls this function to
+ * let you know. You still share the same
+ * editdata, the difference is the
+ * LevelObject pointer and the number of
+ * duplicates.
+ */
+void MMF2Func PutObject(mv *mV, LO *lo, SerializedED *SED, ushort NDup)
+{
+#ifndef RUN_ONLY
+	if(NDup == 1) //is this the first object being created?
 	{
-		Edif::Free(edPtr);
+		//You can put common code to both
+		//CreateObject and CreateFromFile
+		//as this function will execute
+		//after either one.
 	}
-#endif // !defined(RUN_ONLY)
+#endif
 }
 
-void WINAPI DLLExport DuplicateObject(mv __far *mV, fpObjInfo oiPtr, LPEDATA edPtr)
+/* RemoveObject
+ * Just the opposite of the above, when
+ * the user removes an instance of your
+ * object. This also functions as a
+ * DestroyObject function of sorts when
+ * NDup == 1.
+ */
+void MMF2Func RemoveObject(mv *mV, LO *lo, SerializedED *SED, ushort NDup)
 {
 #ifndef RUN_ONLY
-	EditData ed (edPtr);
-	ed.Values = (*gvars)[mV->mvEditApp];
-	ed.Strings = (*gstrs)[mV->mvEditApp];
-	ed.Serialize(mV, edPtr);
-#endif // !defined(RUN_ONLY)
+	if(NDup == 1) //is this the last object being removed?
+	{
+		Edif::Free(SED);
+		//
+	}
+#endif
 }
 
-void WINAPI DLLExport GetObjectRect(mv _far *mV, RECT FAR *rc, fpLevObj loPtr, LPEDATA edPtr)
+/* CloneObject
+ * When the user makes a clone of your object
+ * (not just another instance), MMF2 copies the
+ * contents of the editdata and then lets you
+ * know that the editdata in question is in
+ * new hands. Here you can 'fix' anything that
+ * might be caused by directly copying the
+ * editdata, though you should never have
+ * any problems like that in the first place.
+ */
+void MMF2Func CloneObject(mv *mV, OI *oi, SerializedED *SED)
 {
 #ifndef RUN_ONLY
-	rc->right = rc->left + SDK->Icon->GetWidth();	// edPtr->swidth;
-	rc->bottom = rc->top + SDK->Icon->GetHeight();	// edPtr->sheight;
-#endif // !defined(RUN_ONLY)
-	return;
+	//
+#endif
 }
 
-void WINAPI DLLExport EditorDisplay(mv _far *mV, fpObjInfo oiPtr, fpLevObj loPtr, LPEDATA edPtr, RECT FAR *rc)
+/* EditObject
+ * If the user double-clicks your object icon
+ * or chooses the Edit option from a context
+ * menu, this function is called. This is useful
+ * as a que to bring up an animation editor for
+ * animations in your object. Return TRUE if
+ * changes were made to the editdata, and FALSE
+ * otherwise.
+ */
+BOOL MMF2Func EditObject (mv *mV, OI *oi, LO *lo, SerializedED *SED)
 {
 #ifndef RUN_ONLY
-
-	LPSURFACE Surface = WinGetSurface((int) mV->mvIdEditWin);
-
-	if(!Surface) return;
-
-	SDK->Icon->Blit(*Surface, rc->left, rc->top, BMODE_TRANSP, BOP_COPY, 0);
-
-#endif // !defined(RUN_ONLY)
+	//
+#endif
+	return FALSE;
 }
 
-extern "C" BOOL WINAPI DLLExport IsTransparent(mv _far *mV, fpLevObj loPtr, LPEDATA edPtr, int dx, int dy){ return FALSE; }
+/* SetEditSize
+ * If your object is resizeable, MMF2 calls this
+ * to let you know that the user has just requested
+ * a resize of the object. You can take the new
+ * size as is, or if it reminds you too much of
+ * 500 page essays you can limit the size to whatever
+ * you want. If you uncomment this function, make
+ * sure you also uncomment it in Ext.def. The
+ * presence of this function tells MMF2 that your
+ * object can be resized; otherwise it can't.
+ */
+/*BOOL MMF2Func SetEditSize(mv *mV, SerializedED *SED, int x, int y)
+{
+#ifndef RUN_ONLY
+	EditData ed (SED);
+	ed.Width = x;
+	ed.Height = y;
+	ed.Serialize(mV, SED);
+	return TRUE;
+#endif
+	return FALSE;
+}*/
 
-BOOL WINAPI GetFilters(LPMV mV, LPEDATA edPtr, DWORD dwFlags, LPVOID pReserved){ return FALSE; }
-BOOL WINAPI	DLLExport UsesFile (LPMV mV, LPTSTR fileName){ return FALSE; }
-void WINAPI	DLLExport CreateFromFile (LPMV mV, LPTSTR fileName, LPEDATA edPtr){}
-DWORD WINAPI DLLExport GetTextCaps(mv _far *mV, LPEDATA edPtr){ return 0; }
-BOOL WINAPI DLLExport GetTextFont(mv _far *mV, LPEDATA edPtr, LPLOGFONT plf, LPTSTR pStyle, UINT cbSize){ return TRUE; }
-BOOL WINAPI DLLExport SetTextFont(mv _far *mV, LPEDATA edPtr, LPLOGFONT plf, LPCSTR pStyle){ return TRUE; }
-COLORREF WINAPI DLLExport GetTextClr(mv _far *mV, LPEDATA edPtr){ return 0; }
-void WINAPI DLLExport SetTextClr(mv _far *mV, LPEDATA edPtr, COLORREF color){}
-DWORD WINAPI DLLExport GetTextAlignment(mv _far *mV, LPEDATA edPtr){ return 0; }
-void WINAPI DLLExport SetTextAlignment(mv _far *mV, LPEDATA edPtr, DWORD dwAlignFlags){}
+/* GetObjectRect
+ * MMF2 wants to know from time to time how much
+ * space your object is taking up on the frame
+ * editor. Currently this just gives the size of
+ * your Icon.png, but you can change it to parallel
+ * with the SetEditSize function above.
+ */
+void MMF2Func GetObjectRect(mv *mV, RECT *rect, LO *lo, SerializedED *SED)
+{
+#ifndef RUN_ONLY
+	rect->right = rect->left + SDK->Icon->GetWidth();
+	rect->bottom = rect->top + SDK->Icon->GetHeight();
+#endif
+}
 
-void WINAPI InitParameter(mv _far *mV, short code, paramExt* pExt)
+
+/* EditorDisplay
+ * This function does the work of drawing your
+ * object on the frame editor. In this example,
+ * the Icon.png file is simply drawn to the
+ * frame, but you can change this to draw
+ * anything you want.
+ */
+void MMF2Func EditorDisplay(mv *mV, OI *oi, LO *lo, SerializedED *SED, RECT *rect)
 {
-	//
+#ifndef RUN_ONLY
+	cSurface *Surface = WinGetSurface(int(mV->mvIdEditWin)); //get access to the frame editor surface
+	if(!Surface) return; //failure
+	SDK->Icon->Blit(*Surface, rect->left, rect->top, BMODE_TRANSP, BOP_COPY, 0); //copy the icon onto the frame editor surface
+#endif
 }
-void WINAPI EditParameter(mv _far *mV, short code, paramExt* pExt)
+
+
+/* IsTransparent
+ * MMF2 calls this to ask if the mouse pointer
+ * is over a transparent part of your object.
+ * Don't ask why this isn't called "IsOpaque",
+ * just accept that it isn't and move on. If the
+ * given coordinates are over an opaque part of
+ * your object, return TRUE, otherwise return
+ * FALSE. (Protip: MMF2 calls this function a
+ * LOT. Don't put a MessageBox function in here
+ * or any other kind of debug function.)
+ */
+extern "C" BOOL MMF2Func IsTransparent(mv *mV, LO *lo, SerializedED *SED, int x, int y)
 {
+#ifndef RUN_ONLY
 	//
+#endif
+	return FALSE;
 }
-void WINAPI GetParameterString(mv _far *mV, short code, paramExt* pExt, LPSTR pDest, short size)
+
+/* PrepareToWriteObject (DEPRECATED)
+ * Just before MMF2 writes the editdata to the MFA,
+ * it calls this function to let you clean up
+ * a temporary copy of the editdata. Because you
+ * intelligently designed your EditData::Serialize
+ * function to always save cleaned data anyway,
+ * this function is useless.
+ */
+void MMF2Func PrepareToWriteObject(mv *, SerializedED *, OI *){}
+
+/* GetFilters
+ * When the MFA filters are set to Automatic, MMF2
+ * asks your extension if it uses filters or not.
+ * If you use any of either kind of filters, return
+ * TRUE for that kind.
+ */
+BOOL MMF2Func GetFilters(mv *mV, SerializedED *SED, DWORD Flags, void *)
 {
-	//
+#ifndef RUN_ONLY
+	//If your extension uses image filters
+//	if((dwFlags & GETFILTERS_IMAGES) != 0) return TRUE;
+
+	//If your extension uses sound filters
+//	if((dwFlags & GETFILTERS_SOUNDS) != 0) return TRUE;
+#endif
+	return FALSE;
 }

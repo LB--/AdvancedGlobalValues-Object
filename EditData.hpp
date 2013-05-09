@@ -1,212 +1,131 @@
-#ifndef _EditData_HeaderPlusPlus_
-#define _EditData_HeaderPlusPlus_
-
-#include "Common.h" //for intellisense
+/* EditData.hpp
+ * This is where you control what data
+ * you want to have at edittime. You
+ * are responsible for serializing and
+ * deserializing (saving/loading) the
+ * data to/from the SerializedED structure
+ * as if it were a file on the hard drive.
+ * It doesn't need to be efficient; this
+ * is just at edittime and once at the
+ * start of the runtime.
+ */
 
 struct EditData
 {
-	typedef std::map<TString, float> GlobalVal; //Global Values
-	typedef std::map<TString, GlobalVal> GlobalVals; //Groups
-	GlobalVals Values;
-	typedef std::map<TString, TString> GlobalStr; //Global Strings
-	typedef std::map<TString, GlobalStr> GlobalStrs; //Groups
-	GlobalStrs Strings;
+	/* MyString, MyInt, MyArray_t, MyArray
+	 * Example data
+	 */
+//	stdtstring MyString;
+//	int MyInt;
+//	typedef std::vector<float> MyArray_t;
+//	MyArray_t MyArray;
 
-	typedef std::list<__int8> Buffer;
-
-	struct Global
+	/* <default constructor>
+	 * This is where you provide default values for
+	 * your editdata. This constructor is used
+	 * when your extension is first created and
+	 * default values are needed.
+	 */
+	EditData() // : MyString(_T("Hello, world!")), MyInt(1337)
 	{
-		TString Name;
-		Global(const TString &name) : Name(name) {}
-		virtual Global *Clone() const = 0;
-		virtual Buffer Serialize() const = 0;
-		virtual operator TString() const = 0;
-		static void Deserialize(const Buffer &from)
-		{
-			//
-		}
-		static void Deserialize(const TString &from)
-		{
-			//
-		}
-		virtual ~Global(){}
-	private:
-		Global();
-		Global(const Global &);
-		Global &operator=(const Global &);
-	};
-	struct Group : Global
-	{
-		Group(const TString &name) : Global(name) {}
-		virtual Group *Clone() const
-		{
-			Group *clone = new Group(Name);
-			clone->contents.reserve(contents.size());
-			for(Contents::iterator it = contents.begin(); it != contents.end(); ++it)
-			{
-				clone->contents.push_back((*it)->Clone());
-			}
-			return clone;
-		}
-		virtual Buffer Serialize() const
-		{
-			Buffer b = Global::Serialize();
-			//
-		}
-		virtual operator TString() const
-		{
-			TString str = Name + "{";
-			for(Contents::iterator it = contents.begin(); it != contents.end(); ++it)
-			{
-				if(it != contents.begin())
-				{
-					str += ", ";
-				}
-				str += **it;
-			}
-			return str + "}";
-		}
-		virtual ~Group()
-		{
-			for(Contents::iterator it = contents.begin(); it != contents.end(); ++it)
-			{
-				delete *it;
-			}
-		}
-	private:
-		typedef std::vector<Global *> Contents;
-		Contents contents;
-		Group();
-		Group(const Group &);
-		Group &operator=(const Group &);
-	};
-	struct GInteger : Global
-	{
-		//
-	private:
-		GInteger();
-		GInteger(const GInteger &);
-		GInteger &operator=(const GInteger &);
-	};
-	struct GFloat : Global
-	{
-		//
-	private:
-		GFloat();
-		GFloat(const GFloat &);
-		GFloat &operator=(const GFloat &);
-	};
-	struct GString : Global
-	{
-		//
-	private:
-		GString();
-		GString(const GString &);
-		GString &operator=(const GString &);
-	};
-
-	EditData(){}
-	EditData(const EditData &from) : Values(from.Values), Strings(from.Strings) {}
-	EditData(LPEDATA &edPtr)
-	{
-		Deserialize(edPtr);
+		//MyArray.push_back(3.1415926f);
 	}
+
+	/* <copy constructor>
+	 * As a convenience in other parts of your code,
+	 * you should copy data from another instance
+	 * of the EditData class. Make sure you deep-copy
+	 * dynamically allocated memory e.g. with pointers.
+	 */
+	EditData(const EditData &from) // : MyString(from.MyString), MyInt(from.MyInt), MyArray(from.MyArray)
+	{
+		//
+	}
+
+	/* operator=
+	 * This is essentially the same as the copy
+	 * constructor above, except you are working
+	 * with an instance that is already
+	 * constructed.
+	 */
 	EditData &operator=(const EditData &from)
 	{
-		Values = from.Values;
-		Strings = from.Strings;
-		return*this;
-	}
-private:
-	static void add(Buffer &b, const Buffer::value_type *d, unsigned long s)
-	{
-		for(; s > 0; --s, ++d) b.push_back(*d);
-	}
-	static void add(Buffer &b, const TString &s){ add(b, (const Buffer::value_type*)(s.c_str()), (s.length()+1)*sizeof(TCHAR)); }
-public:
-	Buffer Serialize(LPMV &mV, LPEDATA &edPtr, bool SaveRunObject = false)
-	{
-		Buffer bytes;
-#define Add(v) add(bytes, (const Buffer::value_type*)&(v), sizeof(v))
-		{
-			GlobalVals::size_type s = Values.size();
-			Add(s);														//Number of Groups
-		}
-		for(GlobalVals::iterator it = Values.begin(); it != Values.end(); ++it)
-		{
-			add(bytes, it->first);										//Name of Group
-			GlobalVal::size_type s = it->second.size();
-			Add(s);														//Number of Globals
-			for(GlobalVal::iterator jt = it->second.begin(); jt != it->second.end(); ++jt)
-			{
-				add(bytes, jt->first);									//Name of Global
-				Add(jt->second);										//Value
-			}
-		}
-		{
-			GlobalStrs::size_type s = Strings.size();
-			Add(s);														//Number of Groups
-		}
-		for(GlobalStrs::iterator it = Strings.begin(); it != Strings.end(); ++it)
-		{
-			add(bytes, it->first);										//Name of Group
-			GlobalStr::size_type s = it->second.size();
-			Add(s);														//Number of Globals
-			for(GlobalStr::iterator jt = it->second.begin(); jt != it->second.end(); ++jt)
-			{
-				add(bytes, jt->first);									//Name of Global
-				add(bytes, jt->second);									//String
-			}
-		}
-		#undef Add
-		if(SaveRunObject) return bytes;
-		LPEDATA t = (LPEDATA)mvReAllocEditData(mV, edPtr, sizeof(EDITDATA)+bytes.size());
-		if(t) edPtr = t;
-		else return Buffer();
-		Buffer::value_type *p = &edPtr->data;
-		for(Buffer::iterator it = bytes.begin(); it != bytes.end(); ++it, ++p) *p = *it;
-		return Buffer();
-	}
-private:
-	static void PassNull(Buffer::value_type *&p)
-	{
-		while(*p) p += sizeof(TCHAR);
-		p += sizeof(TCHAR);
-	}
-public:
-	void Deserialize(LPEDATA &edPtr)
-	{
-		Buffer::value_type *p = &edPtr->data;
-		#define E(t) ((t*)p) /*Extract*/
-		GlobalVals::size_type groups = *E(GlobalVals::size_type);				p += sizeof(GlobalVals::size_type);
-		for(; groups > 0; --groups)
-		{
-			std::string gName = E(TCHAR);										PassNull(p);
-			GlobalVal::size_type values = *E(GlobalVal::size_type);				p += sizeof(GlobalVal::size_type);
-			for(; values > 0; --values)
-			{
-				std::string vName = E(TCHAR);									PassNull(p);
-				float value = *E(float);										p += sizeof(float);
-				Values[gName][vName] = value;
-			}
-		}
-		if(edPtr->eHeader.extVersion == 1) return;
-		GlobalStrs::size_type sgroups = *E(GlobalStrs::size_type);				p += sizeof(GlobalStrs::size_type);
-		for(; sgroups > 0; --sgroups)
-		{
-			std::string gName = E(TCHAR);										PassNull(p);
-			GlobalStr::size_type strings = *E(GlobalStr::size_type);			p += sizeof(GlobalStr::size_type);
-			for(; strings > 0; --strings)
-			{
-				std::string vName = E(TCHAR);									PassNull(p);
-				std::string str = E(TCHAR);										PassNull(p);
-				Strings[gName][vName] = str;
-			}
-		}
-		#undef E
+//		MyString = from.MyString;
+//		MyInt = from.MyInt;
+//		MyArray = from.MyArray;
 	}
 
-	~EditData(){}
-};
+#ifndef RUN_ONLY
+	/* Serialize
+	 * This is where you need to "write" data
+	 * to SerializedED like a file. Make sure
+	 * you can read the data back in the
+	 * constructor below!
+	 */
+	bool Serialize(mv *mV, SerializedED *&SED) const
+	{
+		//Create an instance of EDOStream, a helper class
+		EDOStream os (mV, SED);
 
+		//Write the data you need to save in binary format
+		//(you can use text format, but binary is recommended)
+//		os.write_string(MyString); //works for c-strings too
+//		os.write_value(MyInt); //only works for primitives!
+//		os.write_value(MyArray.size()); //need to know how many to load later
+//		os.write_sequence(MyArray.begin(), MyArray.end()); //works for c-style arrays too
+
+		//That's it! EDOStream automatically stores the data in your extension's editdata
+		return true; //return false in the event of an error
+	}
 #endif
+
+	/* <constructor>
+	 * This is the primary constructor for the
+	 * EditData class. Here you will have to
+	 * "read" SerializedED like a file and
+	 * load back everything that gets saved
+	 * above in Serialize. Make sure you check
+	 * the version information first, this
+	 * constructor is used to update from
+	 * older versions of your editdata as well.
+	 */
+	EditData(SerializedED *SED)
+	{
+		if(SED->Header.extVersion == 0) //older version
+		{
+			//code to update from an older version
+		}
+		else if(SED->Header.extVersion == 1) //current version
+		{
+			//Create an instance of EDIStream, a helper class
+			EDIStream is (SED);
+			//Read back the data in the same format that you stored it above
+//			MyString = is.read_string();
+//			MyInt = is.read_value<int>(); //need to specify the type here
+//			MyArray_t::size_type MyArray_size = is.read_value<MyArray_t::size_type>();
+//			for(MyArray_t::size_type i = 0; i < MyArray_size; ++i)
+//			{
+//				MyArray.push_back(is.read_value<MyArray_t::value_type>());
+//			}
+		}
+		else //the version is newer than current
+		{
+			//Either try to load the data anyway assuming your
+			//future self was smart enough to keep the data in
+			//the same format with new data at the end, or
+			//make an error dialog and load some default data.
+//			MessageBox(NULL, _T("The MFA you are trying to load was saved")
+//			                 _T("with a newer version of this extension."),
+//			                 _T("Error Loading My Extension"), MB_OK);
+		}
+	}
+
+	/* <destructor>
+	 * If you grabbed any memory e.g. with new,
+	 * make sure to e.g. delete it in here.
+	 */
+	~EditData()
+	{
+		//
+	}
+};

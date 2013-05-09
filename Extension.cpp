@@ -1,166 +1,190 @@
+/* Extension.cpp
+ * This file contains the definitions for
+ * your extension's general runtime functions,
+ * such as the constructor and destructor,
+ * handling routines, etc.
+ * Functions defined here:
+ * Extension::Extension <constructor>
+ * Extension::~Extension <destructor>
+ * Extension::Handle
+ * Extension::Display
+ * Extension::Pause
+ * Extension::Continue
+ * Extension::Save
+ * Extension::Load
+ * Extension::Action		<--|
+ * Extension::Condition		<--|- not what you think!
+ * Extension::Expression	<--|
+ */
+
 #include "Common.h"
 
-Extension::Global *Extension::g = 0;
-
-Extension::Extension(LPRDATA _rdPtr, LPEDATA edPtr, fpcob cobPtr)
-	: rdPtr(_rdPtr), rhPtr(_rdPtr->rHo.hoAdRunHeader), Runtime(_rdPtr)
+/* <constructor>
+ * This is your extension's constructor, which
+ * is the replacement for the old CreateRunObject
+ * function. You don't need to manually call
+ * constructors or pointlessly initialize
+ * pointers with dynamic memory. Just link
+ * your A/C/Es, perform initialization steps, and
+ * you're good to go.
+ */
+Extension::Extension(RD *rd, SerializedED *SED, createObjectInfo *COB) : rd(rd), rh(rd->rHo.hoAdRunHeader), Runtime(rd)
 {
-	LinkCondition(0, CompareGlobalVGuess);
-	LinkCondition(1, CompareGlobalSGuess);
-	LinkCondition(2, CompareGlobalV);
-	LinkCondition(3, CompareGlobalS);
+	//Link all your action/condition/expression functions
+	//to their IDs to match the IDs in the JSON here.
+	LinkAction(0, ActionExample);
+	LinkAction(1, SecondActionExample);
 
-	LinkAction(0, SetGlobalVGuess);
-	LinkAction(1, SetGlobalSGuess);
-	LinkAction(2, SetGlobalV);
-	LinkAction(3, SetGlobalS);
-	LinkAction(4, MergeVFrom);
-	LinkAction(5, MergeSFrom);
+	LinkCondition(0, AreTwoNumbersEqual);
 
-	LinkExpression(0, GetGlobalVGuess);
-	LinkExpression(1, GetGlobalSGuess);
-	LinkExpression(2, GetGlobalV);
-	LinkExpression(3, GetGlobalS);
-	LinkExpression(4, GetAllV);
-	LinkExpression(5, GetAllS);
-	LinkExpression(6, GetVGroup);
-	LinkExpression(7, GetSGroup);
+	LinkExpression(0, Add);
+	LinkExpression(1, HelloWorld);
 
 
-	if(!g)
-	{
-		g = new Global;
-		EditData ed (edPtr);
-//		g->Values = ed.Values;
-//		g->Strings = ed.Strings;
-		for(EditData::GlobalVals::iterator it = ed.Values.begin(); it != ed.Values.end(); ++it)
-			for(EditData::GlobalVal::iterator jt = it->second.begin(); jt != it->second.end(); ++jt)
-				g->Values[it->first][jt->first] = jt->second;
-		for(EditData::GlobalStrs::iterator it = ed.Strings.begin(); it != ed.Strings.end(); ++it)
-			for(EditData::GlobalStr::iterator jt = it->second.begin(); jt != it->second.end(); ++jt)
-				g->Strings[it->first][jt->first] = jt->second;
-	}
+	//This is where you'd do anything you'd do in CreateRunObject in the original SDK.
+	//It's the only place you'll get access to the editdata at runtime, so you should
+	//transfer anything from the editdata to the extension class here. For example:
+//	EditData ed (SED);
+//	MyString = ed.MyString;
+//	MyInt = ed.MyInt;
+//	MyArray = ed.MyArray;
+
+	//
 }
 
+/* <destructor>
+ * This is your extension's destructor, the
+ * replacement for DestroyRunObject. No calling
+ * destructors manually or deallocating pointless
+ * dynamic memory - in most cases this function
+ * won't need any code written.
+ */
 Extension::~Extension()
 {
 	//
 }
 
-
+/* Handle
+ * MMF2 calls this function to let your extension
+ * "live" - if you want, you can have MMF2 call this
+ * every frame. This is where you'd, for instance,
+ * simulate physics or move an object. This is
+ * the analagous function to the old HandleRunObject.
+ */
 short Extension::Handle()
 {
+	/*
+	   If your extension will draw to the MMF window you should first 
+	   check if anything about its display has changed :
+
+		   if (rd->roc.rcChanged) return REFLAG_DISPLAY;
+		   else return 0;
+
+	   You will also need to make sure you change this flag yourself 
+	   to 1 whenever you want to redraw your object
+	 
+	   If your extension won't draw to the window, but it still needs 
+	   to do something every MMF2 loop use:
+
+			return 0;
+
+	   If you don't need to do something every loop, use :
+
+			return REFLAG_ONESHOT;
+
+	   This doesn't mean this function can never run again. If you want MMF2
+	   to handle your object again (causing this code to run) use this function:
+
+			Runtime.Rehandle();
+
+	   At the end of the event loop this code will run.
+
+	*/
+
+	//Will not be called next loop	
 	return REFLAG_ONESHOT;
 }
 
-
+/* Display
+ * This is the analagous function to
+ * DisplayRunObject. If you return
+ * REFLAG_DISPLAY in Handle() this
+ * routine will run. If you want MMF2
+ * to apply ink effects for you, then
+ * implement GetRunObjectSurface in
+ * Runtime.cpp instead.
+ */
 short Extension::Display()
 {
 	return 0;
 }
 
+/* Pause
+ * If your extension plays sound, for
+ * example, then MMF2 calls this to
+ * let you know to pause the music,
+ * usually by another extension's request
+ * or by the player pausing the applcation.
+ */
 short Extension::Pause()
 {
 	return 0;
 }
 
+/* Continue
+ * Opposite to the above, MMF2 lets
+ * you know that the silence is over;
+ * your extension may live again.
+ */
 short Extension::Continue()
 {
 	return 0;
 }
 
+/* Save
+ * When the user uses the Save
+ * Frame Position action, you need
+ * so serialize your runtime data to
+ * the File given. It is a Windows
+ * file handle, but you can use some
+ * of MMF2's built-in functions for
+ * writing files. Check the MMF2SDK
+ * Help file for more information.
+ */
 bool Extension::Save(HANDLE File)
 {
-	bool OK = false;
-
-#ifndef VITALIZE
-
-	EditData ed;
-//	ed.Values = g->Values;
-//	ed.Strings = g->Strings;
-	for(GlobalVals::iterator it = g->Values.begin(); it != g->Values.end(); ++it)
-		for(GlobalVal::iterator jt = it->second.begin(); jt != it->second.end(); ++jt)
-			ed.Values[it->first][jt->first] = jt->second;
-	for(GlobalStrs::iterator it = g->Strings.begin(); it != g->Strings.end(); ++it)
-		for(GlobalStr::iterator jt = it->second.begin(); jt != it->second.end(); ++jt)
-			ed.Strings[it->first][jt->first] = jt->second;
-	LPMV fmv = 0;
-	LPEDATA fed = 0;
-	const std::list<__int8> bytes = ed.Serialize(fmv, fed, true);
-	__int8 *arr = new __int8[bytes.size()];
-	__int8 *p = arr;
-	for(std::list<__int8>::const_iterator it = bytes.begin(); it != bytes.end(); ++it, ++p) *p = *it;
-	unsigned long Written;
-	WriteFile(File, arr, bytes.size(), &Written, 0);
-	OK = Written == bytes.size();
-
-#endif
-
-	return OK;
+	return true;
 }
 
-TString ReadStr(HANDLE &f)
-{
-	unsigned long r;
-	TCHAR c;
-	TString ret;
-	while(ReadFile(f, &c, sizeof(TCHAR), &r, 0), c) ret += c;
-	return ret;
-}
+/* Load
+ * As opposed to above, here you need to
+ * restore your extension's runtime state
+ * from the given file. Only read what you
+ * wrote!
+ */
 bool Extension::Load(HANDLE File)
 {
-	bool OK = false;
-
-#ifndef VITALIZE
-
-	unsigned long read;
-	GlobalVals::size_type groups;
-	ReadFile(File, &groups, sizeof(GlobalVals::size_type), &read, 0);
-	for(; groups > 0; --groups)
-	{
-		TString gName = ReadStr(File);
-		GlobalVal::size_type values;
-		ReadFile(File, &values, sizeof(GlobalVal::size_type), &read, 0);
-		for(; values > 0; --values)
-		{
-			TString vName = ReadStr(File);
-			float value;
-			ReadFile(File, &value, sizeof(float), &read, 0);
-			g->Values[gName][vName] = value;
-		}
-	}
-	GlobalStrs::size_type sgroups;
-	ReadFile(File, &sgroups, sizeof(GlobalStrs::size_type), &read, 0);
-	for(; sgroups > 0; --sgroups)
-	{
-		TString gName = ReadStr(File);
-		GlobalStr::size_type strings;
-		ReadFile(File, &strings, sizeof(GlobalStr::size_type), &read, 0);
-		for(; strings > 0; --strings)
-		{
-			TString vName = ReadStr(File);
-			TString str = ReadStr(File);
-			g->Strings[gName][vName] = str;
-		}
-	}
-
-	OK = true;
-
-#endif
-
-	return OK;
+	return true;
 }
 
-void Extension::Action(int ID, LPRDATA rdPtr, long param1, long param2)
+
+/* Action, Condition, Expression
+ * These are called if there's no function linked
+ * to an ID. You may want to put MessageBox calls
+ * to let you know that the ID is unlinked, or you
+ * may just want to use unlinked A/C/Es as a feature.
+ */
+void Extension::Action(int ID, RD *rd, long param1, long param2)
 {
-	//
 }
-long Extension::Condition(int ID, LPRDATA rdPtr, long param1, long param2)
+
+long Extension::Condition(int ID, RD *rd, long param1, long param2)
 {
-	return false;
+	return false; //hopefully StringComparison (PARAM_CMPSTRING) is not used, or this may crash
 }
-long Extension::Expression(int ID, LPRDATA rdPtr, long param)
+
+long Extension::Expression(int ID, RD *rd, long param)
 {
-	return 0;
+	return long(_T("")); //so that unlinked expressions that return strings won't crash
 }
 
